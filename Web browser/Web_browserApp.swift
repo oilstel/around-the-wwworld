@@ -75,6 +75,7 @@ struct BrowserCommands: Commands {
             Divider()
             Button("Load Local Frame…") { model.importBookmarks() }
             Button("Load Frame from URL…") { model.importBookmarksFromURL() }
+            Button("Load Are.na Channel as Frame…") { model.importArenaChannel() }
             Button("Export Frame…") { model.exportCurrentFrame() }
 
             Divider()

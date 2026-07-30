@@ -18,6 +18,16 @@ struct SettingsView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.black)
 
+            section("Square size") {
+                Picker("", selection: $model.squareSize) {
+                    ForEach(SquareSize.allCases) { size in
+                        Text(size.label).tag(size)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
             section("The frame") {
                 Toggle("Dense", isOn: $model.isDense)
                     .font(.system(size: 13))

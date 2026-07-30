@@ -9,6 +9,23 @@ import Combine
 import Foundation
 import SwiftUI
 
+/// How big the squares along the edge are drawn.
+enum SquareSize: String, CaseIterable, Identifiable {
+    case small, medium, large
+
+    var id: String { rawValue }
+
+    var points: CGFloat {
+        switch self {
+        case .small: 24
+        case .medium: 36
+        case .large: 52
+        }
+    }
+
+    var label: String { rawValue.capitalized }
+}
+
 /// What to do with a frame holding more sites than the ring has squares.
 enum SquareOverflow: String, CaseIterable, Identifiable {
     /// A page number in the top-left corner, squares kept at full size.
@@ -83,6 +100,9 @@ final class BrowserModel: ObservableObject {
     @Published var framePage = 0
     @Published private(set) var isTouring = false
     @Published private var isViewportBlank = false
+    @Published var squareSize: SquareSize {
+        didSet { UserDefaults.standard.set(squareSize.rawValue, forKey: Self.squareSizeKey) }
+    }
     /// Squares packed edge to edge, with no margin left round the window.
     @Published var isDense: Bool {
         didSet { UserDefaults.standard.set(isDense, forKey: Self.denseKey) }
@@ -97,11 +117,17 @@ final class BrowserModel: ObservableObject {
     private static let framesKey = "saved_frames"
     private static let currentFrameKey = "current_frame"
     private static let legacySitesKey = "saved_sites"
+    private static let squareSizeKey = "square_size"
     private static let denseKey = "dense_ring"
+    private static let shippedFrameKey = "shipped_frame_added"
+    private static let shippedFrameName = "Model Sites"
     private static let overflowKey = "square_overflow"
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
+        let storedSize = UserDefaults.standard.string(forKey: Self.squareSizeKey)
+        squareSize = storedSize.flatMap(SquareSize.init(rawValue:)) ?? .medium
+
         // Dense unless it's been turned off — .bool would read a missing key as
         // false, which is the opposite of the default wanted here.
         isDense = UserDefaults.standard.object(forKey: Self.denseKey) as? Bool ?? true
@@ -157,13 +183,42 @@ final class BrowserModel: ObservableObject {
             frames = [Frame(name: "My frame",
                             sites: sites.sorted { ($0.slot ?? .max) < ($1.slot ?? .max) })]
         } else {
-            frames = [Frame(name: "My frame")]
+            // Nothing saved yet, so the app opens onto the frame it ships with
+            // rather than an empty ring.
+            frames = [shippedFrame() ?? Frame(name: "My frame")]
         }
+
+        addShippedFrameIfNeeded()
 
         let remembered = UserDefaults.standard.string(forKey: Self.currentFrameKey).flatMap(UUID.init(uuidString:))
         currentFrameID = frames.contains { $0.id == remembered } ? remembered : frames.first?.id
         selectedFrameID = currentFrameID
         save()
+    }
+
+    /// The frame the app comes with: Elliott Cost's Model Sites channel from
+    /// Are.na, baked in at build time. Only ever used for a first run — once
+    /// there are saved frames it's never looked at again, so editing or
+    /// deleting it sticks.
+    private func shippedFrame() -> Frame? {
+        guard let url = Bundle.main.url(forResource: "model-sites", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let frame = try? makeFrame(from: data, fallbackName: Self.shippedFrameName),
+              !frame.sites.isEmpty else { return nil }
+        return frame
+    }
+
+    /// Anyone already using the app has frames of their own, so the one it ships
+    /// with would never be reached. It's added alongside theirs, the once —
+    /// remembered afterwards, so throwing it away doesn't bring it back on the
+    /// next launch. Their own frames and whichever one is open are left alone.
+    private func addShippedFrameIfNeeded() {
+        guard !UserDefaults.standard.bool(forKey: Self.shippedFrameKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.shippedFrameKey)
+
+        guard !frames.contains(where: { $0.name == Self.shippedFrameName }),
+              let frame = shippedFrame() else { return }
+        frames.append(frame)
     }
 
     private func save() {
@@ -227,12 +282,20 @@ final class BrowserModel: ObservableObject {
         renamingFrame = frame
     }
 
+    /// Your own name unless told otherwise — an imported frame keeps whoever
+    /// made it.
     @discardableResult
-    func addFrame(named name: String, sites: [Site] = []) -> Frame {
-        let frame = Frame(name: name, sites: sites)
+    func addFrame(named name: String, sites: [Site] = [], author: String? = nil) -> Frame {
+        let frame = Frame(name: name, sites: sites, author: author ?? Self.thisUser)
         frames.append(frame)
         save()
         return frame
+    }
+
+    /// What a frame you make is signed with.
+    static var thisUser: String {
+        let name = NSFullUserName().trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? NSUserName() : name
     }
 
     /// Drag one frame tile onto another to reorder the grid.
@@ -246,9 +309,14 @@ final class BrowserModel: ObservableObject {
         save()
     }
 
-    func rename(_ frame: Frame, to name: String) {
+    func rename(_ frame: Frame, to name: String, author: String? = nil) {
         guard let index = frames.firstIndex(where: { $0.id == frame.id }) else { return }
         frames[index].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let author {
+            let trimmed = author.trimmingCharacters(in: .whitespacesAndNewlines)
+            frames[index].author = trimmed.isEmpty ? nil : trimmed
+        }
         save()
     }
 
@@ -344,7 +412,14 @@ final class BrowserModel: ObservableObject {
         stopTour()
         mode = .browser
 
-        let elsewhere = sites.filter { $0.id != selectedID }
+        // Compared by address rather than by id: a frame can hold the same site
+        // twice, and landing on the copy would reload the page you're already
+        // reading, which looks like the button doing nothing.
+        let here = selectedSite?.identity ?? engine.currentURL.map {
+            Site(name: "", url: $0.absoluteString).identity ?? ""
+        }
+        let elsewhere = sites.filter { $0.identity != here }
+
         if let site = (elsewhere.isEmpty ? sites : elsewhere).randomElement() {
             open(site)
         }

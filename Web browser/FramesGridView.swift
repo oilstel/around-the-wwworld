@@ -116,6 +116,13 @@ private struct FrameTile: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
 
+                if let author = frame.displayAuthor {
+                    Text("by \(author)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.black.opacity(0.45))
+                        .lineLimit(1)
+                }
+
                 Text("\(frame.sites.count) site\(frame.sites.count == 1 ? "" : "s")")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.black.opacity(0.45))
@@ -275,11 +282,14 @@ struct RenameFrameView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
+    @State private var author: String
 
     init(model: BrowserModel, frame: Frame) {
         self.model = model
         self.frame = frame
         _name = State(initialValue: frame.name)
+        // A frame from before authors existed is signed by you on the next edit.
+        _author = State(initialValue: frame.displayAuthor ?? BrowserModel.thisUser)
     }
 
     var body: some View {
@@ -298,6 +308,21 @@ struct RenameFrameView: View {
                 .padding(.vertical, 4)
                 .background(Rectangle().fill(Color.urlBarBackground))
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("By")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.black.opacity(0.45))
+
+                EditableTextField(text: $author,
+                                  placeholder: "Who made it",
+                                  font: .systemFont(ofSize: 13),
+                                  onSubmit: save)
+                    .frame(height: 18)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Rectangle().fill(Color.urlBarBackground))
+            }
+
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
@@ -312,7 +337,7 @@ struct RenameFrameView: View {
     }
 
     private func save() {
-        model.rename(frame, to: name)
+        model.rename(frame, to: name, author: author)
         dismiss()
     }
 }

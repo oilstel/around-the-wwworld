@@ -20,15 +20,19 @@ struct BookmarksFile: Codable {
 
     var version: Int = 1
     var frame: String?
+    /// Who made it. Kept so a frame handed on still says whose it was.
+    var author: String?
     var sites: [Entry]
 }
 
 extension BrowserModel {
     // MARK: - Export
 
-    /// e.g. elliott-cost-my-frame-made-on-2026-07-29.json
+    /// e.g. elliott-cost-my-frame-made-on-2026-07-29.json — named for whoever
+    /// made the frame rather than whoever happens to be exporting it, so
+    /// someone else's frame passed on keeps their name on the file.
     private func filename(for frame: Frame) -> String {
-        let user = NSFullUserName()
+        let user = (frame.displayAuthor ?? Self.thisUser)
             .lowercased()
             .map { $0.isLetter || $0.isNumber ? String($0) : "-" }
             .joined()
@@ -60,6 +64,7 @@ extension BrowserModel {
         do {
             let file = BookmarksFile(
                 frame: frame.name,
+                author: frame.displayAuthor,
                 sites: frame.sites.map { .init(name: $0.name, url: $0.url, notes: $0.notes) })
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
@@ -82,22 +87,25 @@ extension BrowserModel {
     func makeFrame(from data: Data, fallbackName: String) throws -> Frame {
         let decoder = JSONDecoder()
         let name: String
+        let author: String?
         let entries: [BookmarksFile.Entry]
 
         if let file = try? decoder.decode(BookmarksFile.self, from: data) {
             name = file.frame?.isEmpty == false ? file.frame! : fallbackName
+            author = file.author
             entries = file.sites
         } else {
             // Also accept a bare array, which is what people tend to hand-write.
             entries = try decoder.decode([BookmarksFile.Entry].self, from: data)
             name = fallbackName
+            author = nil
         }
 
         let sites = entries.compactMap { entry -> Site? in
             let site = Site(name: entry.name, url: entry.url, notes: entry.notes)
             return site.identity == nil ? nil : site
         }
-        return Frame(name: name, sites: sites)
+        return Frame(name: name, sites: sites, author: author)
     }
 
     /// Bring a frame in as a new frame and switch to it.
@@ -109,7 +117,7 @@ extension BrowserModel {
                                      message: "That file didn't contain any sites.")
                 return
             }
-            addFrame(named: frame.name, sites: frame.sites)
+            addFrame(named: frame.name, sites: frame.sites, author: frame.author)
             if let added = frames.last {
                 select(added)
             }
@@ -139,8 +147,7 @@ extension BrowserModel {
 
     /// Fetch someone else's exported frame straight off the web.
     func importBookmarksFromURL() {
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = "https://example.com/frame.json"
+        let field = NSTextField.addressField(placeholder: "https://example.com/frame.json")
 
         let prompt = NSAlert()
         prompt.messageText = "Load Frame from URL"
@@ -166,6 +173,22 @@ extension BrowserModel {
                                      message: "\(url.absoluteString)\n\n\(error.localizedDescription)")
             }
         }
+    }
+}
+
+extension NSTextField {
+    /// A box to paste an address into. Wide, single-line, and scrolling rather
+    /// than truncating: a pasted URL that outruns the box should run off the
+    /// end of it, not turn into an ellipsis that reads as though the address
+    /// itself had been shortened.
+    static func addressField(placeholder: String) -> NSTextField {
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 380, height: 24))
+        field.placeholderString = placeholder
+        field.usesSingleLineMode = true
+        field.lineBreakMode = .byClipping
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        return field
     }
 }
 

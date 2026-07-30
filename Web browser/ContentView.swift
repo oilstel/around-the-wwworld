@@ -12,7 +12,9 @@ struct ContentView: View {
     @EnvironmentObject private var model: BrowserModel
     @Environment(\.openWindow) private var openWindow
 
-    private let square: CGFloat = 36
+    /// The size squares are drawn at before anything shrinks them.
+    private var square: CGFloat { model.squareSize.points }
+
     private let outerPadding: CGFloat = 10
     /// Tighter at the top, so the ring sits close under the title bar.
     private let topPadding: CGFloat = 3
@@ -79,11 +81,20 @@ struct ContentView: View {
                 Button {
                     model.openRandomSite()
                 } label: {
-                    SpiralGlyph()
-                        .stroke(Color.black.opacity(model.sites.isEmpty ? 0.45 : 1),
-                                style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
-                        .frame(width: 16, height: 16)
-                        .contentShape(Rectangle())
+                    // The glyph is a thin stroked line, which on its own only
+                    // answers to clicks that land on the line itself. The clear
+                    // square behind it takes the whole area, the way the tour
+                    // button does.
+                    ZStack {
+                        Color.clear
+
+                        SpiralGlyph()
+                            .stroke(Color.black.opacity(model.sites.isEmpty ? 0.45 : 1),
+                                    style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                            .frame(width: 16, height: 16)
+                    }
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("A site at random")
