@@ -1,0 +1,20 @@
+# Build output
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Release artefact — goes on a GitHub release rather than in the tree
+Around the wwworld.zip
+
+# Favicons belong to the sites they came from, and the script that fetches
+# them is a workbench tool rather than part of the app.
+favicon-images/
+export-favicons.swift
+
+# Signs with a personal Developer ID
+release.sh
+
+# Local tool and OS clutter
+.claude/
+.DS_Store
