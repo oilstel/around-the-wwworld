@@ -2,18 +2,18 @@
 
 A small macOS browser for keeping your friends' websites close.
 
-- **Around the world** walks the ring on its own, a couple of seconds a site.
+- **Around the world** walks the frame on its own, a couple of seconds a site.
 - **Frames** can be exported as JSON and sent to someone, or dropped onto the
   window to load.
-- **Notes** hang off a site and follow you around the frame.
-- **Dense mode** packs the squares edge to edge; frames too full for the ring
-  either turn pages or shrink the squares to fit, whichever you prefer.
+- **Notes** are stored in the JSON export. Right click a favicon to add them.
+- **Dense mode** packs the favicons edge to edge; frames too full for the frame
+  either turn pages or shrink the favicons to fit.
 
 This software is based on a past `<iframe>` frame website by
 [Laurel Schwulst](https://laurelschwulst.com/).
 
-It's free, and stays that way. If you'd like to keep this and other things like
-it going, you can support the work on
+It's free. If you'd like to keep this and other things like
+it going, you can support my work on
 [Patreon](https://www.patreon.com/elliottcost).
 
 ## Building
