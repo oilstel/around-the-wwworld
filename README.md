@@ -12,6 +12,10 @@ A small macOS browser for keeping your friends' websites close.
 This software is based on a past `<iframe>` frame website by
 [Laurel Schwulst](https://laurelschwulst.com/).
 
+It's free, and stays that way. If you'd like to keep this and other things like
+it going, you can support the work on
+[Patreon](https://www.patreon.com/elliottcost).
+
 ## Building
 
 Open `Web browser.xcodeproj` in Xcode and run. It targets macOS 14 and up, and
