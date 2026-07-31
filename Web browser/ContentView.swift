@@ -34,29 +34,57 @@ struct ContentView: View {
         }
         .frame(minWidth: 640, minHeight: 480)
         .background(Color.frameBackground)
-        .background(WindowStyler(title: windowTitle))
+        .background(WindowStyler(title: windowTitle, bare: !model.showsToolbar))
+        // Without a title bar the content has the whole window, top edge included.
+        .ignoresSafeArea(model.showsToolbar ? [] : .container, edges: .top)
         // Drop someone's exported frame anywhere on the window to load it.
         .onDrop(of: [.fileURL], delegate: FrameFileDropDelegate(model: model))
         .toolbar {
             ToolbarItemGroup(placement: .principal) {
-                Text(model.frameName)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.black)
-                    .lineLimit(1)
-                    .contentShape(Rectangle())
-                    // SwiftUI's .contextMenu doesn't fire inside a toolbar
-                    // item, so the right-click is handled in AppKit.
-                    .overlay {
-                        RightClickMenu(items: [
-                            ("Rename Frame…", {
-                                if let frame = model.currentFrame { model.renamingFrame = frame }
-                            }),
-                            ("Export Frame…", {
-                                if let frame = model.currentFrame { model.exportFrame(frame) }
-                            })
-                        ])
+                // Kept in one stack so the arrow sits right against the address
+                // rather than being spaced off it by the toolbar.
+                HStack(spacing: 6) {
+                    // The address of whatever's open. With nothing loaded there's
+                    // no address to show, so the frame's name stands in rather
+                    // than leaving the bar empty.
+                    Text(model.displayURL.isEmpty ? model.frameName : model.displayURL)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.black)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .contentShape(Rectangle())
+                        // SwiftUI's .contextMenu doesn't fire inside a toolbar
+                        // item, so the right-click is handled in AppKit.
+                        .overlay {
+                            RightClickMenu(items: [
+                                ("Rename Frame…", {
+                                    if let frame = model.currentFrame { model.renamingFrame = frame }
+                                }),
+                                ("Export Frame…", {
+                                    if let frame = model.currentFrame { model.exportFrame(frame) }
+                                })
+                            ])
+                        }
+                        .help("Right-click for this frame's name and export")
+
+                    Button {
+                        model.openInDefaultBrowser()
+                    } label: {
+                        Image(systemName: "arrow.up.forward")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.black.opacity(canLeave ? 0.75 : 0.3))
+                            .frame(width: 14, height: 14)
+                            .contentShape(Rectangle())
                     }
-                    .help("Right-click to rename this frame")
+                    .buttonStyle(.plain)
+                    .help("Open this page in your default browser")
+                    .disabled(!canLeave)
+                }
+                // No page on show while you're looking at every frame, so
+                // there's no address to give and nowhere to send it. Hidden
+                // rather than removed so the bar doesn't reflow.
+                .opacity(model.mode == .frames ? 0 : 1)
+                .allowsHitTesting(model.mode != .frames)
             }
 
             ToolbarItemGroup(placement: .primaryAction) {
@@ -133,6 +161,7 @@ struct ContentView: View {
             }
         }
         .modifier(HideToolbarTitle())
+        .toolbar(model.showsToolbar ? .visible : .hidden, for: .windowToolbar)
         .toolbarBackground(Color.frameBackground, for: .windowToolbar)
         .alert(model.alert?.title ?? "", isPresented: Binding(
             get: { model.alert != nil },
@@ -203,8 +232,16 @@ struct ContentView: View {
 
             let margin = model.isDense ? 0 : max(2, (outerPadding * scale).rounded())
             // Dense leaves a hairline's worth of room under the toolbar, for the
-            // rule that keeps the squares from running straight into it.
-            let top = model.isDense ? 1 : max(1, (topPadding * scale).rounded())
+            // rule that keeps the squares from running straight into it. With no
+            // bar up there, there's nothing to rule off from and nothing to
+            // leave room for.
+            let ruled = model.isDense && model.showsToolbar
+            // The tight top inset is there to sit the ring close under the bar.
+            // With no bar above it the ring wants the same margin as its other
+            // three sides, or it looks pushed up against the window's edge.
+            let top = model.isDense
+                ? (ruled ? 1 : 0)
+                : (model.showsToolbar ? max(1, (topPadding * scale).rounded()) : margin)
 
             let content = CGSize(width: geometry.size.width - 2 * margin,
                                  height: geometry.size.height - margin - top)
@@ -261,7 +298,7 @@ struct ContentView: View {
             // Without a margin there's nothing between the top row of squares
             // and the toolbar, so a rule stands in for the gap.
             .overlay(alignment: .top) {
-                if model.isDense {
+                if ruled {
                     Rectangle()
                         .fill(Color.separator)
                         .frame(height: 1)
@@ -302,10 +339,16 @@ struct ContentView: View {
         .help(label)
     }
 
-    /// Not drawn in the title bar (the toolbar shows the frame name) but kept
-    /// current for the Window menu.
+    /// Not drawn in the title bar (the toolbar draws the address instead) but
+    /// kept current for the Window menu, where a frame's name says more about
+    /// which window is which than the page it happens to be showing.
     private var windowTitle: String {
         model.frameName
+    }
+
+    /// Whether there's a page to hand over to another browser.
+    private var canLeave: Bool {
+        model.engine.currentURL != nil || model.selectedSite?.resolvedURL != nil
     }
 
     // MARK: - Ring
@@ -696,6 +739,8 @@ private struct WindowStyler: NSViewRepresentable {
     /// Using .navigationTitle instead would keep un-hiding the system title,
     /// showing the URL twice.
     let title: String
+    /// No top bar at all — no title bar, no traffic lights.
+    let bare: Bool
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -716,6 +761,20 @@ private struct WindowStyler: NSViewRepresentable {
         // The frame is a light gray, so pin the window light: a dark-mode title
         // bar would draw white text on it.
         window.appearance = NSAppearance(named: .aqua)
+
+        // With the top bar hidden the title bar goes too: the ring runs to the
+        // very top of the window and the traffic lights go with it. The window
+        // can still be dragged by its background, and ⌥⌘T brings it all back.
+        if bare {
+            window.styleMask.insert(.fullSizeContentView)
+        } else {
+            window.styleMask.remove(.fullSizeContentView)
+        }
+        window.isMovableByWindowBackground = bare
+
+        for button: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
+            window.standardWindowButton(button)?.isHidden = bare
+        }
     }
 }
 

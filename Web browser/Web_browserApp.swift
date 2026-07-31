@@ -91,6 +91,12 @@ struct BrowserCommands: Commands {
             .keyboardShortcut("t", modifiers: [.command, .shift])
             .disabled(model.sites.isEmpty)
 
+            // Also the spiral in the top bar, which isn't there when the bar
+            // has been hidden.
+            Button("Random Site") { model.openRandomSite() }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                .disabled(model.sites.isEmpty)
+
             Divider()
 
             Button("Previous Site") { model.selectPreviousSite() }
@@ -142,6 +148,13 @@ struct BrowserCommands: Commands {
             Divider()
 
             Toggle("Dense Frame", isOn: $model.isDense)
+
+            // The bar carries the address and the buttons, so with it gone the
+            // things that only lived there need reaching by key.
+            Button(model.showsToolbar ? "Hide Top Bar" : "Show Top Bar") {
+                model.showsToolbar.toggle()
+            }
+            .keyboardShortcut("t", modifiers: [.command, .option])
         }
     }
 }

@@ -103,6 +103,11 @@ final class BrowserModel: ObservableObject {
     @Published var squareSize: SquareSize {
         didSet { UserDefaults.standard.set(squareSize.rawValue, forKey: Self.squareSizeKey) }
     }
+    /// The bar across the top, with the address and the buttons on it. Hiding it
+    /// leaves nothing but the ring and the page.
+    @Published var showsToolbar: Bool {
+        didSet { UserDefaults.standard.set(showsToolbar, forKey: Self.toolbarKey) }
+    }
     /// Squares packed edge to edge, with no margin left round the window.
     @Published var isDense: Bool {
         didSet { UserDefaults.standard.set(isDense, forKey: Self.denseKey) }
@@ -119,6 +124,7 @@ final class BrowserModel: ObservableObject {
     private static let legacySitesKey = "saved_sites"
     private static let squareSizeKey = "square_size"
     private static let denseKey = "dense_ring"
+    private static let toolbarKey = "shows_toolbar"
     private static let shippedFrameKey = "shipped_frame_added"
     private static let shippedFrameName = "Model Sites"
     private static let overflowKey = "square_overflow"
@@ -128,8 +134,9 @@ final class BrowserModel: ObservableObject {
         let storedSize = UserDefaults.standard.string(forKey: Self.squareSizeKey)
         squareSize = storedSize.flatMap(SquareSize.init(rawValue:)) ?? .medium
 
-        // Dense unless it's been turned off — .bool would read a missing key as
-        // false, which is the opposite of the default wanted here.
+        // Both default to on, so a missing key has to read as true rather than
+        // as .bool's false.
+        showsToolbar = UserDefaults.standard.object(forKey: Self.toolbarKey) as? Bool ?? true
         isDense = UserDefaults.standard.object(forKey: Self.denseKey) as? Bool ?? true
 
         let storedOverflow = UserDefaults.standard.string(forKey: Self.overflowKey)
